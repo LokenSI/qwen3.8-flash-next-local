@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Gravitational N-Body &amp; Orbital Mechanics Laboratory</title>
+<style>
+:root{
+  --bg-0:#05070d; --bg-1:#0c1220;
+  --glass:rgba(14,20,32,.58);
+  --stroke:rgba(148,163,184,.20);
+  --stroke-2:rgba(148,163,184,.38);
+  --text:#e8eefb; --muted:#93a2ba; --dim:#5f7089;
+  --teal:#5eead4; --blue:#7cc0ff; --violet:#a99bff;
+  --good:#3ddc97; --warn:#ffc861; --bad:#ff7a8a;
+  --shadow:0 22px 60px rgba(0,0,0,.55);
+  --mono:ui-monospace,"SFMono-Regular","Cascadia Mono","JetBrains Mono",Consolas,"Liberation Mono",monospace;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:radial-gradient(1200px 800px at 20% 10%,#101a2c 0%,var(--bg-1) 45%,var(--bg-0) 100%);
+  color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.45;
+  overflow:hidden;-webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;
+}
+canvas#sky{position:fixed;inset:0;display:block;touch-action:none;cursor:crosshair}
+canvas#sky.grabbing{cursor:grabbing}
+.ui{position:fixed;z-index:10;max-width:calc(100vw - 24px)}
+.glass{
+  background:var(--glass);
+  backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);
+  border:1px solid var(--stroke);border-radius:16px;
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.07);
+}
+#hud{top:14px;left:14px;width:254px}
+#dock{left:14px;bottom:14px;width:324px}
+#keys{right:14px;bottom:14px;padding:9px 12px;color:var(--dim);font-size:11px;
+  display:flex;gap:11px;flex-wrap:wrap;align-items:center;max-width:min(600px,calc(100vw - 28px))}
+#keys span{white-space:nowrap}
+.phead{display:flex;align-items:center;gap:9px;padding:11px 13px;cursor:pointer;border:0;
+  width:100%;background:transparent;color:inherit;text-align:left;font:inherit;border-radius:16px}
+.phead h1{margin:0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+  font-weight:650;flex:1;transition:color .2s ease}
+.phead:hover h1{color:var(--text)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 12px var(--teal);flex:none}
+.dot.alt{background:var(--violet);box-shadow:0 0 12px var(--violet)}
+.chev{flex:none;font-size:11px;color:var(--muted);line-height:1;transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.collapsed .chev{transform:rotate(-90deg)}
+.pbody{padding:2px 13px 14px;display:grid;gap:11px}
+.collapsed>.pbody{display:none}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--stroke-2),transparent);margin:1px -2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11.5px;
+  color:var(--muted);padding:1px 0}
+.stat b{font-family:var(--mono);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;
+  color:var(--text);letter-spacing:-.01em}
+.stat b.good{color:var(--good)} .stat b.warn{color:var(--warn)} .stat b.bad{color:var(--bad)}
+.mini{font-size:10.5px;color:var(--dim)}
+</style>
+
+<style>
+label.ctl{display:grid;gap:5px}
+.ctl .cap{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:10px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+.ctl .cap output{font-family:var(--mono);font-size:11.5px;letter-spacing:0;text-transform:none;
+  color:var(--text);font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;margin:0;
+  background:transparent;cursor:pointer}
+input[type=range]:focus{outline:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:999px;
+  background:linear-gradient(90deg,var(--teal) 0 var(--fill,50%),rgba(255,255,255,.13) var(--fill,50%) 100%)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:13px;height:13px;
+  margin-top:-4.5px;border-radius:50%;background:#0b111c;border:2px solid var(--teal);
+  box-shadow:0 0 0 0 rgba(94,234,212,.28),0 2px 7px rgba(0,0,0,.6);
+  transition:transform .14s ease,box-shadow .2s ease}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.16);box-shadow:0 0 0 5px rgba(94,234,212,.17),0 2px 7px rgba(0,0,0,.6)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.04);box-shadow:0 0 0 8px rgba(94,234,212,.24)}
+input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 5px rgba(124,192,255,.35)}
+input[type=range]::-moz-range-track{height:4px;border-radius:999px;background:rgba(255,255,255,.13)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:999px;background:var(--teal)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border:2px solid var(--teal);border-radius:50%;background:#0b111c}
+input.violet::-webkit-slider-runnable-track{background:linear-gradient(90deg,var(--violet) 0 var(--fill,50%),rgba(255,255,255,.13) var(--fill,50%) 100%)}
+input.violet::-webkit-slider-thumb{border-color:var(--violet)}
+input.violet:hover::-webkit-slider-thumb{box-shadow:0 0 0 5px rgba(169,155,255,.18)}
+input.violet::-moz-range-progress{background:var(--violet)}
+input.blue::-webkit-slider-runnable-track{background:linear-gradient(90deg,var(--blue) 0 var(--fill,50%),rgba(255,255,255,.13) var(--fill,50%) 100%)}
+input.blue::-webkit-slider-thumb{border-color:var(--blue)}
+input.blue:hover::-webkit-slider-thumb{box-shadow:0 0 0 5px rgba(124,192,255,.18)}
+input.blue::-moz-range-progress{background:var(--blue)}
+.btn{font:inherit;font-size:12px;color:var(--text);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 11px;border-radius:10px;border:1px solid var(--stroke);
+  background:linear-gradient(180deg,rgba(148,163,184,.15),rgba(148,163,184,.05));
+  transition:transform .13s ease,background .2s ease,border-color .2s ease,box-shadow .2s ease}
+.btn:hover{background:linear-gradient(180deg,rgba(148,163,184,.26),rgba(148,163,184,.09));
+  border-color:var(--stroke-2);transform:translateY(-1px)}
+.btn:active{transform:translateY(0) scale(.975)}
+.btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.btn.primary{border-color:rgba(94,234,212,.45);color:#e7fffb;
+  background:linear-gradient(180deg,rgba(94,234,212,.26),rgba(94,234,212,.07));
+  box-shadow:0 0 22px rgba(94,234,212,.13)}
+.btn.primary:hover{background:linear-gradient(180deg,rgba(94,234,212,.36),rgba(94,234,212,.11))}
+.btn.ghost{background:transparent}
+.btn.wide{width:100%}
+select{font:inherit;font-size:12.5px;color:var(--text);width:100%;padding:9px 30px 9px 11px;
+  border-radius:10px;border:1px solid var(--stroke);background:rgba(9,14,23,.72);cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2393a2ba' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+  transition:border-color .2s ease}
+select:hover{border-color:var(--stroke-2)}
+select:focus{outline:none;border-color:rgba(124,192,255,.6)}
+option{background:#0b111c;color:var(--text)}
+.toggles{display:flex;flex-wrap:wrap;gap:7px}
+.switch{position:relative;display:inline-flex;align-items:center;gap:7px;padding:6px 10px 6px 7px;
+  border-radius:999px;border:1px solid var(--stroke);background:rgba(148,163,184,.07);cursor:pointer;
+  font-size:11.5px;color:var(--muted);transition:color .2s ease,border-color .2s ease,background .2s ease}
+.switch:hover{border-color:var(--stroke-2);color:var(--text)}
+.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch .knob{width:26px;height:15px;border-radius:999px;background:rgba(255,255,255,.14);
+  position:relative;transition:background .22s ease;flex:none}
+.switch .knob::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;
+  background:#9fb0c9;transition:transform .24s cubic-bezier(.4,0,.2,1),background .22s ease}
+.switch input:checked+.knob{background:rgba(94,234,212,.34)}
+.switch input:checked+.knob::after{transform:translateX(11px);background:var(--teal)}
+.switch input:focus-visible+.knob{box-shadow:0 0 0 3px rgba(124,192,255,.4)}
+.switch.on{color:#e7fffb;border-color:rgba(94,234,212,.42);background:rgba(94,234,212,.12)}
+kbd{font-family:var(--mono);font-size:10px;padding:2px 5px;border-radius:5px;
+  border:1px solid var(--stroke);background:rgba(255,255,255,.06);color:var(--muted)}
+#blurb{font-size:11.5px;color:var(--muted);line-height:1.5}
+#blurb strong{color:var(--text);font-weight:600}
+@media (max-width:780px){
+  #dock{width:calc(100vw - 20px);left:10px;bottom:10px}
+  #hud{width:calc(100vw - 20px);left:10px;top:10px}
+  #keys{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-label="N-body gravitational simulation canvas"></canvas>
+
+<section id="hud" class="ui glass" aria-live="off">
+  <button class="phead" id="hudHead" title="Collapse / expand telemetry (H)">
+    <span class="dot"></span><h1>Telemetry</h1><span class="chev">&#9662;</span>
+  </button>
+  <div class="pbody">
+    <div class="stat"><span>FPS</span><b id="sFps">0</b></div>
+    <div class="stat"><span>Bodies</span><b id="sBodies">0</b></div>
+    <div class="stat"><span>Sim time</span><b id="sTime">0</b></div>
+    <div class="stat"><span>Steps / s</span><b id="sSteps">0</b></div>
+    <div class="divider"></div>
+    <div class="stat"><span>Kinetic T</span><b id="sT">0</b></div>
+    <div class="stat"><span>Potential U</span><b id="sU">0</b></div>
+    <div class="stat"><span>Total E</span><b id="sE">0</b></div>
+    <div class="stat"><span>Drift &Delta;E/E&#8320;</span><b id="sDrift">0%</b></div>
+    <div class="divider"></div>
+    <div class="stat"><span>Momentum |p|</span><b id="sP">0</b></div>
+    <div class="stat"><span>p&#8339; , p&#8339;</span><b id="sPxy">0, 0</b></div>
+    <div class="stat"><span>Center of mass</span><b id="sCom">0, 0</b></div>
+    <div class="divider"></div>
+    <div class="stat"><span>View scale</span><b id="sZoom">0</b></div>
+    <div class="mini" id="sSoft">softening &epsilon; = 0</div>
+  </div>
+</section>
+
+<section id="dock" class="ui glass">
+  <button class="phead" id="dockHead" title="Collapse / expand controls (C)">
+    <span class="dot alt"></span><h1>Mission Control</h1><span class="chev">&#9662;</span>
+  </button>
+  <div class="pbody">
+    <label class="ctl">
+      <span class="cap">Preset scenario <output id="presetCount"></output></span>
+      <select id="preset" aria-label="Preset scenario"></select>
+    </label>
+    <p id="blurb"></p>
+    <div class="divider"></div>
+    <div class="grid2">
+      <button class="btn primary" id="btnPlay" aria-pressed="true">Pause</button>
+      <button class="btn" id="btnStep" title="Advance one time step (S)">Step &#10230;</button>
+      <button class="btn" id="btnReset" title="Re-initialise the current preset (R)">Reset preset</button>
+      <button class="btn ghost" id="btnClear" title="Remove every body (X)">Clear</button>
+    </div>
+    <label class="ctl">
+      <span class="cap">Time step dt <output id="oDt"></output></span>
+      <input type="range" id="rDt" min="0" max="1000" value="500">
+    </label>
+    <label class="ctl">
+      <span class="cap">Gravity G <output id="oG"></output></span>
+      <input type="range" id="rG" class="violet" min="0" max="1000" value="500">
+    </label>
+    <label class="ctl">
+      <span class="cap">Trail persistence <output id="oTrail"></output></span>
+      <input type="range" id="rTrail" class="blue" min="0" max="1000" value="600">
+    </label>
+    <label class="ctl">
+      <span class="cap">Spawn mass <output id="oMass"></output></span>
+      <input type="range" id="rMass" class="blue" min="0" max="1000" value="500">
+    </label>
+    <div class="toggles">
+      <label class="switch" id="swCollide">Collisions<input type="checkbox" id="cCollide" checked><span class="knob"></span></label>
+      <label class="switch" id="swTrack">Track COM<input type="checkbox" id="cTrack"><span class="knob"></span></label>
+      <label class="switch" id="swTrails">Trails<input type="checkbox" id="cTrails" checked><span class="knob"></span></label>
+      <label class="switch" id="swVec">Vectors<input type="checkbox" id="cVec"><span class="knob"></span></label>
+      <label class="switch" id="swDrag">Drag&nbsp;=&nbsp;pan<input type="checkbox" id="cDrag"><span class="knob"></span></label>
+    </div>
+  </div>
+</section>
+
+<div id="keys" class="ui glass">
+  <span><kbd>drag</kbd> launch body</span>
+  <span><kbd>wheel</kbd> zoom</span>
+  <span><kbd>mid</kbd>/<kbd>right</kbd> pan</span>
+  <span><kbd>space</kbd> play</span>
+  <span><kbd>S</kbd> step</span>
+  <span><kbd>R</kbd> reset</span>
+  <span><kbd>X</kbd> clear</span>
+  <span><kbd>T</kbd> track COM</span>
+  <span><kbd>H</kbd>/<kbd>C</kbd> panels</span>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================================================================ *
+   *  0. Small utilities
+   * ================================================================ */
+  var TAU = Math.PI * 2;
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function logMap(t, lo, hi) { return lo * Math.pow(hi / lo, clamp(t, 0, 1)); }
+  function logNorm(v, lo, hi) { return Math.log(v / lo) / Math.log(hi / lo); }
+
+  // Human friendly number: exponential when extreme, otherwise fixed decimals.
+  function num(v, digits) {
+    if (v === null || v === undefined || !isFinite(v)) return '\u2014';
+    var a = Math.abs(v);
+    if (a === 0) return '0';
+    if (a >= 1e6 || a < 1e-4) return v.toExponential(2);
+    var d = digits === undefined ? 3 : digits;
+    if (a >= 1000) d = 1; else if (a >= 100) d = 2;
+    return v.toFixed(d);
+  }
+  function ftime(t) {
+    if (!isFinite(t)) return '\u2014';
+    if (Math.abs(t) >= 1e5) return t.toExponential(2);
+    return t.toFixed(2);
+  }
+
+  /* ================================================================ *
+   *  1. DOM handles
+   * ================================================================ */
+  function id(x) { return document.getElementById(x); }
+  var D = {
+    sky: id('sky'), hud: id('hud'), dock: id('dock'),
+    hudHead: id('hudHead'), dockHead: id('dockHead'),
+    preset: id('preset'), presetCount: id('presetCount'), blurb: id('blurb'),
+    btnPlay: id('btnPlay'), btnStep: id('btnStep'), btnReset: id('btnReset'), btnClear: id('btnClear'),
+    rDt: id('rDt'), rG: id('rG'), rTrail: id('rTrail'), rMass: id('rMass'),
+    oDt: id('oDt'), oG: id('oG'), oTrail: id('oTrail'), oMass: id('oMass'),
+    cCollide: id('cCollide'), cTrack: id('cTrack'), cTrails: id('cTrails'),
+    cVec: id('cVec'), cDrag: id('cDrag'),
+    swCollide: id('swCollide'), swTrack: id('swTrack'), swTrails: id('swTrails'),
+    swVec: id('swVec'), swDrag: id('swDrag'),
+    sFps: id('sFps'), sBodies: id('sBodies'), sTime: id('sTime'), sSteps: id('sSteps'),
+    sT: id('sT'), sU: id('sU'), sE: id('sE'), sDrift: id('sDrift'),
+    sP: id('sP'), sPxy: id('sPxy'), sCom: id('sCom'), sZoom: id('sZoom'), sSoft: id('sSoft')
+  };
+
+  /* ================================================================ *
+   *  2. Simulation state
+   * ================================================================ */
+  var S = {
+    G: 1, Gbase: 1,
+    dt: 0.0025, dtBase: 0.0025,
+    softening: 0.01,
+    collisions: true,
+    collideScale: 1,
+    sizeK: 0.05,          // radius = sizeK * cbrt(mass)  ->  volume conserved in merges
+    running: true,
+    time: 0,
+    steps: 0,
+    bodies: [],
+    E0: null, T0: null, U0: null,
+    trailSec: 2.5,
+    trailsOn: true,
+    vectors: false,
+    trackCom: false,
+    dragPans: false,
+    presetId: 'figure8',
+    lastU: 0
+  };
+
+  var cam = { x: 0, y: 0, tx: 0, ty: 0, scale: 140, tscale: 140 };
+  var spawn = { mass: 1, lo: 0.01, hi: 100, base: 1 };
+  var nextId = 1;
+
+  function makeBody(x, y, vx, vy, mass, hue) {
+    var b = {
+      id: nextId++, x: x, y: y, vx: vx, vy: vy, ax: 0, ay: 0,
+      mass: mass, hue: hue === undefined ? 195 : hue, trail: [], merged: false
+    };
+    b.radius = S.sizeK * Math.cbrt(mass);
+    return b;
+  }
+  function refreshRadii() {
+    for (var i = 0; i < S.bodies.length; i++) {
+      var b = S.bodies[i];
+      b.radius = S.sizeK * Math.cbrt(b.mass);
+    }
+  }
+
+  /* ================================================================ *
+   *  3. Canvas / high-DPI plumbing
+   * ================================================================ */
+  var canvas = D.sky;
+  var ctx = canvas.getContext('2d');
+  var W = 1, H = 1, dpr = 1;
+
+  function resize() {
+    var w = Math.max(1, window.innerWidth);
+    var h = Math.max(1, window.innerHeight);
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    W = w; H = h;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // world <-> screen (screen y points down, world y points up)
+  function sxOf(x) { return W * 0.5 + (x - cam.x) * cam.scale; }
+  function syOf(y) { return H * 0.5 - (y - cam.y) * cam.scale; }
+  function sxToWorld(px) { return cam.x + (px - W * 0.5) / cam.scale; }
+  function syToWorld(py) { return cam.y - (py - H * 0.5) / cam.scale; }
+  function pointerPos(ev) {
+    var r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+  /* ================================================================ *
+   *  4. Physics: Plummer-softened gravity + Velocity Verlet
+   *  Consistent pair of softened potential/force, so the Hamiltonian
+   *  H = T + U that we display is the quantity Verlet nearly conserves.
+   *      a_i = G * sum_j m_j (r_j - r_i) / (|r|^2 + eps^2)^(3/2)
+   *      U   = -G * sum_{i<j} m_i m_j / sqrt(|r|^2 + eps^2)
+   * ================================================================ */
+  function computeAccelerations() {
+    var B = S.bodies, n = B.length, G = S.G;
+    var eps = S.softening, e2 = eps * eps;
+    var i, j, bi, bj;
+    for (i = 0; i < n; i++) { bi = B[i]; bi.ax = 0; bi.ay = 0; }
+    var U = 0;
+    for (i = 0; i < n; i++) {
+      bi = B[i];
+      for (j = i + 1; j < n; j++) {
+        bj = B[j];
+        var dx = bj.x - bi.x;
+        var dy = bj.y - bi.y;
+        var r2 = dx * dx + dy * dy + e2;
+        if (r2 < 1e-14) r2 = 1e-14;
+        var r = Math.sqrt(r2);
+        var inv3 = G / (r2 * r);           // G / r^3 with softened r
+        var fx = inv3 * dx, fy = inv3 * dy;
+        bi.ax += fx * bj.mass; bi.ay += fy * bj.mass;
+        bj.ax -= fx * bi.mass; bj.ay -= fy * bi.mass;
+        U -= G * bi.mass * bj.mass / r;
+      }
+    }
+    S.lastU = U;
+    S.dirtyU = false;
+    return U;
+  }
+
+  function kineticEnergy() {
+    var B = S.bodies, T = 0;
+    for (var i = 0; i < B.length; i++) {
+      var b = B[i];
+      T += 0.5 * b.mass * (b.vx * b.vx + b.vy * b.vy);
+    }
+    return T;
+  }
+
+  // Potential recomputed straight from current positions (used when the
+  // configuration changed outside the integrator, e.g. after a merge).
+  function potentialEnergy() {
+    var B = S.bodies, n = B.length, G = S.G, e2 = S.softening * S.softening, U = 0;
+    for (var i = 0; i < n; i++) {
+      for (var j = i + 1; j < n; j++) {
+        var dx = B[j].x - B[i].x, dy = B[j].y - B[i].y;
+        var r2 = dx * dx + dy * dy + e2;
+        if (r2 < 1e-14) r2 = 1e-14;
+        U -= G * B[i].mass * B[j].mass / Math.sqrt(r2);
+      }
+    }
+    return U;
+  }
+
+  function energies() {
+    var T = kineticEnergy();
+    var U = S.dirtyU ? potentialEnergy() : S.lastU;
+    return { T: T, U: U, E: T + U };
+  }
+
+  // One Velocity Verlet (symplectic) step: half kick - full drift - half kick.
+  function step(dt) {
+    var B = S.bodies, i, b, h = dt * 0.5;
+    computeAccelerations();                 // a(t), U(t)
+    for (i = 0; i < B.length; i++) {
+      b = B[i];
+      b.vx += b.ax * h; b.vy += b.ay * h;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+    }
+    computeAccelerations();                 // a(t + dt)
+    for (i = 0; i < B.length; i++) {
+      b = B[i];
+      b.vx += b.ax * h; b.vy += b.ay * h;
+    }
+    if (S.collisions) mergeOverlaps();
+    S.time += dt;
+    S.steps++;
+  }
+  /* ---- Inelastic merging: mass, volume and momentum are conserved ---- */
+  function mergeOverlaps() {
+    var B = S.bodies, scale = S.collideScale;
+    var pass = 0, changed = false;
+    while (pass < 16) {
+      var hit = false;
+      for (var i = 0; i < B.length && !hit; i++) {
+        var a = B[i];
+        if (a.merged) continue;
+        for (var j = i + 1; j < B.length; j++) {
+          var c = B[j];
+          if (c.merged) continue;
+          var dx = c.x - a.x, dy = c.y - a.y;
+          var d = Math.sqrt(dx * dx + dy * dy);
+          if (d >= (a.radius + c.radius) * scale) continue;
+          // merge only while approaching, so bound orbits are not annihilated
+          if (dx * (c.vx - a.vx) + dy * (c.vy - a.vy) > 0) continue;
+          absorb(a, c);
+          hit = true; changed = true;
+        }
+      }
+      if (!hit) break;
+      pass++;
+    }
+    if (changed) {
+      var keep = [];
+      for (var k = 0; k < B.length; k++) if (!B[k].merged) keep.push(B[k]);
+      S.bodies = keep;
+      computeAccelerations();
+    }
+  }
+
+  // The heavier partner survives; the lighter one is consumed by it.
+  function absorb(keep, gone) {
+    var heavy = keep, light = gone;
+    if (keep.mass < gone.mass) { heavy = gone; light = keep; }
+    var M = heavy.mass + light.mass;
+    if (!(M > 0)) { light.merged = true; return; }
+    // centre-of-mass position + momentum conserving inelastic collision
+    heavy.x = (heavy.x * heavy.mass + light.x * light.mass) / M;
+    heavy.y = (heavy.y * heavy.mass + light.y * light.mass) / M;
+    heavy.vx = (heavy.vx * heavy.mass + light.vx * light.mass) / M;
+    heavy.vy = (heavy.vy * heavy.mass + light.vy * light.mass) / M;
+    // volume conservation: r = sizeK*m^(1/3)  =>  r_new^3 = r_a^3 + r_b^3
+    heavy.mass = M;
+    heavy.radius = S.sizeK * Math.cbrt(M);
+    heavy.hue = hueMix(heavy.hue, light.hue);
+    if (light.trail.length > heavy.trail.length) heavy.trail = light.trail;
+    light.merged = true;
+  }
+
+  // Mass weighted circular mean of two hues, keeps merged bodies on palette.
+  function hueMix(h1, h2) {
+    var a1 = h1 * Math.PI / 180, a2 = h2 * Math.PI / 180;
+    var x = Math.cos(a1) + Math.cos(a2), y = Math.sin(a1) + Math.sin(a2);
+    if (x === 0 && y === 0) return h1;
+    var h = Math.atan2(y, x) * 180 / Math.PI;
+    return h < 0 ? h + 360 : h;
+  }
+
+  /* ---- Aggregate system quantities ---- */
+  function totalMass() {
+    var m = 0, B = S.bodies;
+    for (var i = 0; i < B.length; i++) m += B[i].mass;
+    return m;
+  }
+  function centerOfMass() {
+    var B = S.bodies, m = 0, x = 0, y = 0;
+    for (var i = 0; i < B.length; i++) {
+      m += B[i].mass; x += B[i].mass * B[i].x; y += B[i].mass * B[i].y;
+    }
+    if (!(m > 0)) return { x: 0, y: 0, m: 0 };
+    return { x: x / m, y: y / m, m: m };
+  }
+  function momentum() {
+    var B = S.bodies, px = 0, py = 0;
+    for (var i = 0; i < B.length; i++) {
+      px += B[i].mass * B[i].vx; py += B[i].mass * B[i].vy;
+    }
+    return { x: px, y: py, mag: Math.sqrt(px * px + py * py) };
+  }
+  // Galilean boost: cancels centre-of-mass drift without changing dynamics.
+  function zeroMomentum() {
+    var m = totalMass();
+    if (!(m > 0)) return;
+    var p = momentum(), vx = p.x / m, vy = p.y / m, i;
+    for (i = 0; i < S.bodies.length; i++) {
+      S.bodies[i].vx -= vx; S.bodies[i].vy -= vy;
+    }
+  }
+  /* ================================================================ *
+   *  5. Presets
+   * ================================================================ */
+  var PI = Math.PI;
+
+  // deterministic RNG so a preset always looks identical
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  var PRESETS = [
+    {
+      id: 'figure8',
+      label: 'Figure-8 Three-Body Solution',
+      blurb: '<strong>Chenciner &amp; Montgomery</strong> periodic orbit: three equal masses chase ' +
+        'each other along one shared figure-eight. Initial data integrated to 1e-12, period ' +
+        'T = 6.3259139 sim-time. Watch the energy drift stay pinned near zero.',
+      G: 1, dt: 0.0025, speed: 24, softening: 0.01, sizeK: 0.042,
+      collisions: true, collideScale: 1, trailSec: 3.6,
+      spawnMass: 1, massLo: 0.02, massHi: 40, boost: true,
+      bodies: function () {
+        // positions (x, -y), (-x, y), (0, 0); velocities v1 = v2 = -v3/2
+        var x = 0.97004355, y = 0.24287268;
+        var v3x = -0.93240737, v3y = -0.86473146;
+        var v1x = -v3x / 2, v1y = -v3y / 2;
+        return [
+          { x: x, y: -y, vx: v1x, vy: v1y, mass: 1, hue: 190 },
+          { x: -x, y: y, vx: v1x, vy: v1y, mass: 1, hue: 42 },
+          { x: 0, y: 0, vx: v3x, vy: v3y, mass: 1, hue: 305 }
+        ];
+      }
+    },
+    {
+      id: 'earthmoon',
+      label: 'Sun-Earth-Moon System',
+      blurb: 'Hierarchical triple in astronomical units (AU, years, solar masses, ' +
+        'G = 4&pi;&sup2;). The Moon orbits the Earth inside the Sun\u2019s Hill sphere &mdash; ' +
+        'zoom in to see the Earth-Moon barycenter. Lunar capture is stable for thousands of months.',
+      G: 39.4784176, dt: 2.5e-5, speed: 30, softening: 3e-4, sizeK: 0.013,
+      collisions: true, collideScale: 1, trailSec: 4,
+      spawnMass: 3e-6, massLo: 1e-9, massHi: 0.5, boost: true,
+      bodies: function () {
+        var MS = 1, ME = 3.00349e-6, MM = 3.694e-8;   // solar masses
+        var dEM = 1;                                    // AU
+        var dEMoon = 0.0025695;                         // AU
+        var tot = MS + ME + MM;
+        // place Earth-Moon barycentre at x = dEM from the Sun, all about the system barycentre
+        var xEM = MS * dEM / tot;
+        var xs = -ME * 0 - MM * 0;
+        var sunX = -(ME * dEM + MM * (dEM + dEMoon)) / tot;
+        var vSun = 0;
+        void xs; void xEM;
+        // circular two-body speed of the Earth-Moon pair around the Sun
+        var vPair = Math.sqrt(S_G(MS + ME + MM) * 0 + Math.sqrt(39.4784176 * (MS + ME + MM) / dEM));
+        return null;
+      }
+    },
+    {
+      id: 'lagrange',
+      label: 'Lagrange Points Demonstration',
+      blurb: 'Massive primary + secondary in a circular orbit with mass ratio &mu; = 0.0099 ' +
+        '(&lt; 0.0385 &rArr; stable triangular points). Test particles sit at <strong>L4</strong> and ' +
+      '<strong>L5</strong> and librate there, while markers placed at L1 / L2 drift off: the collinear points are unstable.',
+      G: 1, dt: 8e-4, speed: 34, softening: 0.02, sizeK: 0.05,
+      collisions: false, collideScale: 1, trailSec: 6,
+      spawnMass: 1e-4, massLo: 1e-8, massHi: 0.2, boost: false,
+      bodies: function () { return null; }
+    },
+    {
+      id: 'galaxy',
+      label: 'Galaxy Collision / Accretion Core',
+      blurb: 'Two cluster cores on a near-hyperbolic fly-by (total E &gt; 0) dragging their own ' +
+        'members and test debris. Tidal bridges form, and with collisions on, the dense cores ' +
+      'accrete everything they sweep up.',
+      G: 1, dt: 0.002, speed: 26, softening: 0.15, sizeK: 0.11,
+      collisions: true, collideScale: 1, trailSec: 1.4,
+      spawnMass: 0.4, massLo: 1e-3, massHi: 60, boost: true,
+      bodies: function () { return null; }
+    }
+  ];
+//@@NEXT@@
