@@ -47,23 +47,48 @@ trail persistence and spawn mass.
 |---|---|
 | **Model** | Qwen3.8-Flash-Next — Unsloth `UD-IQ3_XXS` (~3.06 bpw, 176.9 B params MoE, 77 GiB on disk) |
 | **Runtime** | [GenerelSchwerz/llama.cpp](https://github.com/GenerelSchwerz/llama.cpp) `moe-cache` branch @ [`b46f7f7a4`](https://github.com/GenerelSchwerz/llama.cpp/commit/b46f7f7a436f990932d3da3ec53380e2b9effc89), CUDA 13.3.1, in Docker |
-| **GPU** | NVIDIA RTX 5070 Ti — 16 GB |
-| **CPU / RAM** | Intel i7-14700F (20C / 28T) — 64 GB |
-| **Host** | Windows 11 → WSL2 (Ubuntu 24.04) → Docker Desktop |
+| **GPU** | NVIDIA RTX 5070 Ti — 16 GB, also driving the display (~15,300 MiB usable) |
+| **CPU / RAM** | Intel i7-14700F (28 threads) — 64 GB DDR5, 60 GiB given to the WSL2 VM |
+| **Host** | Windows 11 → WSL2 → Docker Desktop with the NVIDIA runtime |
 | **Context** | 262,144 tokens, KV cache `q8_0` |
 
 A 77 GiB model on a 16 GB card works because `--load-mode none --lazy-mode on` keeps the MoE
 expert table file-backed on SSD and streams experts on demand into a pinned host cache, instead
 of loading the whole thing into RAM.
 
-Measured on this box, 1024-token completions:
+### Throughput
 
-| context | prefill | decode | VRAM peak |
-|---|---|---|---|
-| 12 k | 123 tok/s | 43 tok/s | 15.4 / 16.3 GB |
-| 64 k prompt @ 262 k ctx | 185 tok/s | 19 tok/s | 15.1 / 16.3 GB |
+The reference request (158 prompt tokens, 1024 completion), measured runs — not averages:
 
-Host `MemAvailable` bottomed out around 9.5 GB.
+| | prefill | decode |
+|---|---|---|
+| **cold**, first request after load (12 k ctx, cache 96) | 73.9 tok/s | **47.6 tok/s** |
+| **warm**, 20 back-to-back requests, no prompt cache | 166–173 tok/s | **52.6–53.2 tok/s** |
+| daily-use profile (64 k ctx, cache 80) | — | 44.5 tok/s |
+
+VRAM peaked at 15,127 MiB of the ~15,300 MiB usable; available host RAM never dropped below
+~10.1 GiB.
+
+## Origin
+
+This rig reproduces the [Notable Runs](https://github.com/GenerelSchwerz/llama.cpp/wiki/Notable-Runs)
+guide for [GenerelSchwerz/llama.cpp](https://github.com/GenerelSchwerz/llama.cpp)'s `moe-cache`
+branch — same fork, same request, same measurement script, but on WSL2 instead of bare Linux and
+on a different quant.
+
+**It ended up faster than the reference run.** The wiki's machine reports 47.0 tok/s decode; this
+box matched it cold at 47.6 and then held **52.6–53.2 tok/s warm** across 20 back-to-back
+requests — 50+ tok/s sustained, through WSL2's virtualisation layer, on the GPU that is also
+driving the desktop.
+
+Getting there needed one fix. WSL2 caps pinned (page-locked) memory at ~80% of the VM's RAM —
+47.0 GiB here — and the fork allocates the entire expert source in a single `cudaMallocHost`.
+That allocation fails silently, the fallback hands back a plain CPU buffer, and ggml quietly runs
+all the experts on the CPU at 17–20 tok/s. A three-line patch keeps the cached buffer type on the
+pageable fallback and pins the source in chunks against a budget. `UD-IQ3_XXS` is the quant that
+fits: its 46,375 MiB expert source pins in full under the cap, which is what earns the fork's
+fast grouped-decode path (`covered=48/48`) — one unpinned layer drops the whole graph back to
+~25 tok/s.
 
 ## How it was driven
 
