@@ -45,10 +45,10 @@ trail persistence and spawn mass.
 
 | | |
 |---|---|
-| **Model** | Qwen3.8-Flash-Next — Unsloth `UD-IQ3_XXS` (~3.06 bpw, 176.9 B params MoE, 77 GiB on disk) |
+| **Model** | Qwen3.8-Flash-Next — 125B-A6B MoE, 10 of 512 experts + 1 shared active per token, plus a 51B n-gram embedding table (llama.cpp counts the pair as 176.94 B). Unsloth `UD-IQ3_XXS`, 76.3 GiB on disk |
 | **Runtime** | [GenerelSchwerz/llama.cpp](https://github.com/GenerelSchwerz/llama.cpp) `moe-cache` branch @ [`b46f7f7a4`](https://github.com/GenerelSchwerz/llama.cpp/commit/b46f7f7a436f990932d3da3ec53380e2b9effc89), CUDA 13.3.1, in Docker |
 | **GPU** | NVIDIA RTX 5070 Ti — 16 GB, also driving the display (~15,300 MiB usable) |
-| **CPU / RAM** | Intel i7-14700F (28 threads) — 64 GB DDR5, 60 GiB given to the WSL2 VM |
+| **CPU / RAM** | Intel i7-14700F (28 threads) — 64 GB DDR5-6000, 60 GiB given to the WSL2 VM |
 | **Host** | Windows 11 → WSL2 → Docker Desktop with the NVIDIA runtime |
 | **Context** | 262,144 tokens, KV cache `q8_0` |
 

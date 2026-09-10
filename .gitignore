@@ -4,3 +4,6 @@ _edge_*.txt
 
 # Agent scratch from generation/verification runs
 _tmp_*.js
+
+# Local post draft, not for publishing
+LINKEDIN.md
