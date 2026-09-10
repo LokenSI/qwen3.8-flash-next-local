@@ -1,3 +1,6 @@
 # Throwaway Edge profiles + browser logs from headless screenshot runs
 _etmp*/
 _edge_*.txt
+
+# Agent scratch from generation/verification runs
+_tmp_*.js
